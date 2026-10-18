@@ -73,6 +73,51 @@ fn tags_are_normalized_the_same_way_at_every_door() {
     );
 }
 
+/// The console, MCP and the bulk move all trim, so "DNS " stored as is would
+/// show up as a second group next to "DNS"; a blank one as a header with no
+/// name.
+#[test]
+fn a_group_name_is_trimmed_and_a_blank_one_is_no_group() {
+    let norm = |g: Option<&str>| normalize_group_name(g.map(String::from));
+    assert_eq!(norm(Some("DNS ")).unwrap(), Some("DNS".to_string()));
+    assert_eq!(norm(Some("  DNS\n")).unwrap(), Some("DNS".to_string()));
+    assert_eq!(norm(Some("")).unwrap(), None);
+    assert_eq!(norm(Some("   \t")).unwrap(), None);
+    assert_eq!(norm(None).unwrap(), None);
+    // Bounded after the trim, so padding alone does not refuse a name.
+    let padded = format!("  {}  ", "x".repeat(50));
+    assert_eq!(norm(Some(padded.as_str())).unwrap(), Some("x".repeat(50)));
+    assert_eq!(
+        code_of(norm(Some("x".repeat(51).as_str())).unwrap_err()),
+        codes::GROUP_TOO_LONG
+    );
+}
+
+#[test]
+fn a_new_target_stores_the_trimmed_group_name() {
+    let body = |group: &str| -> NewTarget {
+        serde_json::from_value(serde_json::json!({
+            "name": "api",
+            "check": {"type": "tcp", "host": "db", "port": 5432, "timeout": 1000},
+            "interval": 60,
+            "group_name": group
+        }))
+        .expect("minimal body")
+    };
+    let plan = crate::quotas::service::unlimited_plan();
+    let guard = SsrfGuard::strict();
+
+    let mut new = body("DNS ");
+    validate_new_target(&mut new, &guard, &plan).unwrap();
+    assert_eq!(new.group_name.as_deref(), Some("DNS"));
+
+    for blank in ["", "   "] {
+        let mut new = body(blank);
+        validate_new_target(&mut new, &guard, &plan).unwrap();
+        assert_eq!(new.group_name, None, "{blank:?} must mean no group");
+    }
+}
+
 fn code_of(err: AppError) -> &'static str {
     match err {
         AppError::BadRequest { code, .. } => code,

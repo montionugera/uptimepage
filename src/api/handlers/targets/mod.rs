@@ -45,8 +45,8 @@ const LIST_LIMIT_MAX: usize = 10_000;
 
 use crate::targets::validate::{
     canonicalize_check, carry_credentials, carry_flags, carry_flow_secrets, gate_flow,
-    gate_flow_steps, normalize_tags, reject_passive_probe, take_cleared_credentials,
-    validate_alert_confirmations, validate_alerts, validate_check, validate_group_name,
+    gate_flow_steps, normalize_group_name, normalize_tags, reject_passive_probe,
+    take_cleared_credentials, validate_alert_confirmations, validate_alerts, validate_check,
     validate_new_target, validate_recovery_period, validate_region_policy,
     validate_renotify_interval,
 };
@@ -314,8 +314,9 @@ pub async fn update(
         let available = state.target_store.available_regions().await?;
         validate_region_policy(update.region_policy, available.len())?;
     }
-    if let Some(Some(g)) = update.group_name.as_ref() {
-        validate_group_name(Some(g.as_str()))?;
+    // A blank name clears the group, as `null` does.
+    if let Some(group) = update.group_name.take() {
+        update.group_name = Some(normalize_group_name(group)?);
     }
     if let Some(Some(uid)) = update.owner_user_id {
         ops.validate_owner_is_member(org, Some(uid)).await?;

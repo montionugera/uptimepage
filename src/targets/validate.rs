@@ -213,7 +213,8 @@ pub(crate) fn validate_new_target(
     validate_alert_confirmations(Some(new.alert_confirmations))?;
     validate_renotify_interval(Some(new.renotify_interval_secs))?;
     validate_recovery_period(new.recovery_period_secs)?;
-    validate_group_name(new.group_name.as_deref())
+    new.group_name = normalize_group_name(new.group_name.take())?;
+    Ok(())
 }
 
 /// The interval is the evaluation cadence, so it may not be coarser than the
@@ -346,12 +347,16 @@ pub(crate) fn normalize_tags(tags: &[String]) -> Result<Vec<String>> {
     Ok(out)
 }
 
-pub(crate) fn validate_group_name(group: Option<&str>) -> Result<()> {
+/// The one definition of a group name, whichever front door it came through:
+/// trimmed, and a blank one is no group. "DNS " stored as is would show up as a
+/// second group next to "DNS". Returns what to store.
+pub(crate) fn normalize_group_name(group: Option<String>) -> Result<Option<String>> {
     use crate::error::validation;
-    if let Some(g) = group {
-        validation::check_length(g, "group_name", 50, codes::GROUP_TOO_LONG)?;
-    }
-    Ok(())
+    let Some(g) = group.as_deref().map(str::trim).filter(|g| !g.is_empty()) else {
+        return Ok(None);
+    };
+    validation::check_length(g, "group_name", 50, codes::GROUP_TOO_LONG)?;
+    Ok(Some(g.to_string()))
 }
 
 /// Structural-only (no I/O): reject duplicate channel bindings. The bound

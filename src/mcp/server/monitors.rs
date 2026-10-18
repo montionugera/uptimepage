@@ -13,7 +13,7 @@ use crate::domain::{CheckSpec, TargetAlerts, WriteSource};
 use crate::quotas::ratelimit::RateLimitCategory;
 use crate::target_ops::vet_note;
 use crate::targets::validate::{
-    validate_alert_confirmations, validate_group_name, validate_recovery_period,
+    normalize_group_name, validate_alert_confirmations, validate_recovery_period,
     validate_region_policy, validate_renotify_interval,
 };
 
@@ -677,8 +677,8 @@ impl McpServer {
         validate_alert_confirmations(update.alert_confirmations).map_err(config_error)?;
         validate_renotify_interval(update.renotify_interval_secs).map_err(config_error)?;
         validate_recovery_period(update.recovery_period_secs).map_err(config_error)?;
-        if let Some(Some(group)) = update.group_name.as_ref() {
-            validate_group_name(Some(group.as_str())).map_err(config_error)?;
+        if let Some(group) = update.group_name.take() {
+            update.group_name = Some(normalize_group_name(group).map_err(config_error)?);
         }
         if update.region_policy.is_some() {
             let available = self

@@ -487,7 +487,7 @@ Use a dedicated low-privilege test account, never a real or admin credential: th
                              // take the default-selected set under the plan's
                              // region cap. Every id must be enabled, the set
                              // must fit the cap, and a heartbeat may name none.
-  "group_name": "API",       // optional, at most 50 characters; null clears
+  "group_name": "API",       // optional, at most 50 characters, trimmed; null or blank clears
   "owner_user_id": "…",      // optional member of the org. Left out on create,
                              // the caller owns it, so name one when the token
                              // is a shared pipeline's; null leaves it unowned,
